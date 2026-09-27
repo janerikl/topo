@@ -16,6 +16,9 @@ export const PROVIDER_COLORS: Record<Provider, string> = {
 
 const KIND_PATHS: Record<IconKind, string> = {
   compute: 'M4 4h16v10H4z M8 18h8 M12 14v4',
+  vm: 'M3 4h18v16H3z M7 8.5h10v3H7z M7 13.5h10v3H7z',
+  instancegroup: 'M4 10h8v8H4z M8 6h8v8H8z M12 2h8v8h-8z',
+  container: 'M3 4h18v16H3z M3 10h18 M9 4v16 M15 4v16',
   database:
     'M4 5c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5 M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3',
   cache: 'M4 4h16v6H4z M4 14h16v6H4z M7 7h.01 M7 17h.01',
@@ -29,6 +32,9 @@ const KIND_PATHS: Record<IconKind, string> = {
 
 export const KIND_LABELS: Record<IconKind, string> = {
   compute: 'Compute / Service',
+  vm: 'Virtual Machine',
+  instancegroup: 'VM Instance Group',
+  container: 'Container',
   database: 'Database',
   cache: 'Cache',
   queue: 'Queue',
@@ -67,6 +73,9 @@ export function CloudIcon({
 
 const KINDS: IconKind[] = [
   'compute',
+  'vm',
+  'instancegroup',
+  'container',
   'database',
   'cache',
   'queue',

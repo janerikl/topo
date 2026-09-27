@@ -75,3 +75,9 @@ button {
   border-radius: 8px;
   overflow: hidden;
 }
+
+.react-flow__node-group {
+  background: transparent;
+  border: none;
+  padding: 0;
+}

@@ -2,6 +2,9 @@ export type Provider = 'aws' | 'gcp' | 'azure' | 'generic'
 
 export type IconKind =
   | 'compute'
+  | 'vm'
+  | 'instancegroup'
+  | 'container'
   | 'database'
   | 'cache'
   | 'queue'

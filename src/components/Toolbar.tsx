@@ -23,6 +23,7 @@ export default function Toolbar({
   onDiagramNameChange,
   onPickFolder,
   onNew,
+  onAddGroup,
   onSave,
   diagramList,
   onOpen,
@@ -35,6 +36,7 @@ export default function Toolbar({
   onDiagramNameChange: (name: string) => void
   onPickFolder: () => void
   onNew: () => void
+  onAddGroup: () => void
   onSave: () => void
   diagramList: string[]
   onOpen: (name: string) => void
@@ -77,6 +79,9 @@ export default function Toolbar({
       />
       <button style={btnStyle} onClick={onNew}>
         New
+      </button>
+      <button style={btnStyle} onClick={onAddGroup}>
+        + Group
       </button>
       <button
         style={{

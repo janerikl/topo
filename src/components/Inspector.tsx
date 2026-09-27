@@ -4,9 +4,11 @@ import type { TopoNodeData } from '../types'
 export default function Inspector({
   node,
   onChange,
+  onDuplicate,
 }: {
   node: Node<TopoNodeData> | null
   onChange: (id: string, data: Partial<TopoNodeData>) => void
+  onDuplicate: () => void
 }) {
   if (!node) {
     return (
@@ -83,6 +85,22 @@ export default function Inspector({
           boxSizing: 'border-box',
         }}
       />
+      <button
+        onClick={onDuplicate}
+        style={{
+          marginTop: 16,
+          width: '100%',
+          padding: '7px 0',
+          border: '1px solid #2a2831',
+          borderRadius: 6,
+          background: '#1e1c23',
+          color: '#e7e5ea',
+          fontSize: 13,
+          cursor: 'pointer',
+        }}
+      >
+        Duplicate ({navigator.platform.includes('Mac') ? '⌘D' : 'Ctrl+D'})
+      </button>
     </div>
   )
 }
