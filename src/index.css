@@ -1,0 +1,77 @@
+:root {
+  --bg-app: #0b0b0e;
+  --bg-panel: #141317;
+  --bg-canvas: #0d0c10;
+  --bg-node: #1b1a20;
+  --border: #2a2831;
+  --border-soft: #201f26;
+  --text: #e7e5ea;
+  --text-muted: #8c8996;
+  --accent: #ff0072;
+  --accent-soft: rgba(255, 0, 114, 0.16);
+  --accent-border: rgba(255, 0, 114, 0.55);
+
+  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, Consolas, monospace;
+
+  font: 14px/145% var(--sans);
+  color-scheme: dark;
+  color: var(--text);
+  background: var(--bg-app);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: var(--bg-app);
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+button {
+  font-family: var(--sans);
+}
+
+.react-flow__attribution {
+  background: transparent;
+}
+
+.react-flow__attribution a {
+  color: var(--text-muted);
+}
+
+.react-flow__controls {
+  box-shadow: none;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.react-flow__controls-button {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-soft);
+  fill: var(--text);
+  color: var(--text);
+}
+
+.react-flow__controls-button:hover {
+  background: var(--accent-soft);
+}
+
+.react-flow__controls-button svg {
+  fill: var(--text);
+}
+
+.react-flow__minimap {
+  border-radius: 8px;
+  overflow: hidden;
+}
