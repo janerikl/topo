@@ -22,6 +22,8 @@ export default function Toolbar({
   diagramName,
   onDiagramNameChange,
   onPickFolder,
+  needsReconnect,
+  onReconnect,
   onNew,
   onAddGroup,
   onSave,
@@ -30,11 +32,14 @@ export default function Toolbar({
   historyList,
   onRestoreHistory,
   onExportPng,
+  saveStatus,
 }: {
   folderName: string | null
   diagramName: string
   onDiagramNameChange: (name: string) => void
   onPickFolder: () => void
+  needsReconnect: boolean
+  onReconnect: () => void
   onNew: () => void
   onAddGroup: () => void
   onSave: () => void
@@ -43,6 +48,7 @@ export default function Toolbar({
   historyList: string[]
   onRestoreHistory: (stamp: string) => void
   onExportPng: () => void
+  saveStatus: 'idle' | 'saving' | 'saved'
 }) {
   return (
     <div
@@ -68,9 +74,18 @@ export default function Toolbar({
       >
         Topo
       </strong>
-      <button style={btnStyle} onClick={onPickFolder}>
-        {folderName ? `Folder: ${folderName}` : 'Pick folder...'}
-      </button>
+      {needsReconnect ? (
+        <button
+          style={{ ...btnStyle, background: '#ff0072', borderColor: '#ff0072', color: '#fff' }}
+          onClick={onReconnect}
+        >
+          Reconnect to "{folderName}"
+        </button>
+      ) : (
+        <button style={btnStyle} onClick={onPickFolder}>
+          {folderName ? `Folder: ${folderName}` : 'Pick folder...'}
+        </button>
+      )}
       <input
         value={diagramName}
         onChange={(e) => onDiagramNameChange(e.target.value)}
@@ -95,6 +110,31 @@ export default function Toolbar({
       >
         Save
       </button>
+      {folderName && (
+        <span
+          style={{
+            fontSize: 12,
+            fontWeight: saveStatus === 'saved' ? 600 : 400,
+            minWidth: 70,
+            color: saveStatus === 'saved' ? '#ff0072' : '#8c8996',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            opacity: saveStatus === 'idle' ? 0 : 1,
+            transition: 'opacity 0.3s ease',
+          }}
+        >
+          {saveStatus === 'saving' && 'Saving…'}
+          {saveStatus === 'saved' && (
+            <>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ff0072" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+              Saved
+            </>
+          )}
+        </span>
+      )}
 
       <select
         value=""

@@ -6,10 +6,70 @@ export function hasFolder() {
   return rootHandle !== null
 }
 
+const HANDLE_DB = 'topo-handles'
+const HANDLE_STORE = 'handles'
+const HANDLE_KEY = 'rootFolder'
+
+function openHandleDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(HANDLE_DB, 1)
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(HANDLE_STORE)
+    }
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function persistHandle(handle: FileSystemDirectoryHandle) {
+  const db = await openHandleDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(HANDLE_STORE, 'readwrite')
+    tx.objectStore(HANDLE_STORE).put(handle, HANDLE_KEY)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+}
+
+export async function getPersistedHandle(): Promise<FileSystemDirectoryHandle | null> {
+  try {
+    const db = await openHandleDb()
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(HANDLE_STORE, 'readonly')
+      const req = tx.objectStore(HANDLE_STORE).get(HANDLE_KEY)
+      req.onsuccess = () => resolve(req.result || null)
+      req.onerror = () => reject(req.error)
+    })
+  } catch {
+    return null
+  }
+}
+
+export async function hasReadWritePermission(
+  handle: FileSystemDirectoryHandle,
+): Promise<boolean> {
+  // @ts-expect-error - queryPermission not in default TS lib dom yet
+  const status = await handle.queryPermission({ mode: 'readwrite' })
+  return status === 'granted'
+}
+
+export async function requestReadWritePermission(
+  handle: FileSystemDirectoryHandle,
+): Promise<boolean> {
+  // @ts-expect-error - requestPermission not in default TS lib dom yet
+  const status = await handle.requestPermission({ mode: 'readwrite' })
+  return status === 'granted'
+}
+
+export function useHandle(handle: FileSystemDirectoryHandle) {
+  rootHandle = handle
+}
+
 export async function pickFolder(): Promise<string> {
   // @ts-expect-error - showDirectoryPicker is not in default TS lib dom yet
   const handle: FileSystemDirectoryHandle = await window.showDirectoryPicker()
   rootHandle = handle
+  await persistHandle(handle)
   return handle.name
 }
 

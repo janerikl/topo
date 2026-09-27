@@ -20,13 +20,17 @@ import TopoNode from './components/TopoNode'
 import GroupNode from './components/GroupNode'
 import { CATALOG } from './icons/cloudIcons'
 import {
+  getPersistedHandle,
   hasFolder,
+  hasReadWritePermission,
   listDiagrams,
   listHistory,
   loadDiagram,
   loadHistorySnapshot,
   pickFolder,
+  requestReadWritePermission,
   saveDiagram,
+  useHandle,
 } from './lib/fileStorage'
 import type { TopoNodeData } from './types'
 
@@ -34,6 +38,7 @@ const nodeTypes = { topo: TopoNode, group: GroupNode }
 const withAnimated = (edges: Edge[]) => edges.map((e) => ({ ...e, animated: true }))
 let idCounter = 1
 const nextId = () => `node-${idCounter++}`
+const LAST_DIAGRAM_KEY = 'topo:lastDiagramName'
 
 function Flow() {
   const [nodes, setNodes, onNodesChange] = useNodesState<TopoNodeData>([])
@@ -44,7 +49,13 @@ function Flow() {
   const [diagramList, setDiagramList] = useState<string[]>([])
   const [historyList, setHistoryList] = useState<string[]>([])
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [reconnectHandle, setReconnectHandle] =
+    useState<FileSystemDirectoryHandle | null>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
+  const skipNextAutosave = useRef(true)
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savedBadgeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -225,14 +236,63 @@ function Flow() {
     setHistoryList(await listHistory(name))
   }, [])
 
+  const openDiagramByName = useCallback(async (name: string) => {
+    const diagram = await loadDiagram(name)
+    skipNextAutosave.current = true
+    setDiagramName(diagram.name)
+    setNodes(diagram.nodes as Node<TopoNodeData>[])
+    setEdges(withAnimated(diagram.edges as Edge[]))
+    setSelectedId(null)
+    setHistoryList(await listHistory(diagram.name))
+    localStorage.setItem(LAST_DIAGRAM_KEY, diagram.name)
+  }, [setNodes, setEdges])
+
+  const connectToFolder = useCallback(
+    async (handle: FileSystemDirectoryHandle) => {
+      useHandle(handle)
+      setFolderName(handle.name)
+      setReconnectHandle(null)
+      const names = await listDiagrams()
+      setDiagramList(names)
+      const lastName = localStorage.getItem(LAST_DIAGRAM_KEY)
+      if (lastName && names.includes(lastName)) {
+        await openDiagramByName(lastName)
+      }
+    },
+    [openDiagramByName],
+  )
+
+  useEffect(() => {
+    ;(async () => {
+      const handle = await getPersistedHandle()
+      if (!handle) return
+      if (await hasReadWritePermission(handle)) {
+        await connectToFolder(handle)
+      } else {
+        setReconnectHandle(handle)
+        setFolderName(handle.name)
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleReconnect = async () => {
+    if (!reconnectHandle) return
+    if (await requestReadWritePermission(reconnectHandle)) {
+      await connectToFolder(reconnectHandle)
+    }
+  }
+
   const handlePickFolder = async () => {
     const name = await pickFolder()
     setFolderName(name)
+    setReconnectHandle(null)
     await refreshDiagramList()
     await refreshHistory(diagramName)
   }
 
   const handleNew = () => {
+    skipNextAutosave.current = true
     setNodes([])
     setEdges([])
     setDiagramName('untitled')
@@ -240,35 +300,55 @@ function Flow() {
     setHistoryList([])
   }
 
-  const handleSave = async () => {
-    if (!hasFolder() || !diagramName) return
-    const now = new Date().toISOString()
-    await saveDiagram({
-      name: diagramName,
-      createdAt: now,
-      updatedAt: now,
-      nodes,
-      edges,
-    })
-    await refreshDiagramList()
-    await refreshHistory(diagramName)
-  }
+  const saveNow = useCallback(
+    async (nds: Node<TopoNodeData>[], eds: Edge[], name: string) => {
+      if (!hasFolder() || !name) return
+      setSaveStatus('saving')
+      const now = new Date().toISOString()
+      await saveDiagram({
+        name,
+        createdAt: now,
+        updatedAt: now,
+        nodes: nds,
+        edges: eds,
+      })
+      await refreshDiagramList()
+      await refreshHistory(name)
+      localStorage.setItem(LAST_DIAGRAM_KEY, name)
+      setSaveStatus('saved')
+      if (savedBadgeTimer.current) clearTimeout(savedBadgeTimer.current)
+      savedBadgeTimer.current = setTimeout(() => setSaveStatus('idle'), 2000)
+    },
+    [refreshDiagramList, refreshHistory],
+  )
 
-  const handleOpen = async (name: string) => {
-    const diagram = await loadDiagram(name)
-    setDiagramName(diagram.name)
-    setNodes(diagram.nodes as Node<TopoNodeData>[])
-    setEdges(withAnimated(diagram.edges as Edge[]))
-    setSelectedId(null)
-    await refreshHistory(name)
-  }
+  const handleSave = () => saveNow(nodes, edges, diagramName)
+
+  const handleOpen = (name: string) => openDiagramByName(name)
 
   const handleRestoreHistory = async (stamp: string) => {
     const diagram = await loadHistorySnapshot(diagramName, stamp)
+    skipNextAutosave.current = true
     setNodes(diagram.nodes as Node<TopoNodeData>[])
     setEdges(withAnimated(diagram.edges as Edge[]))
     setSelectedId(null)
   }
+
+  useEffect(() => {
+    if (skipNextAutosave.current) {
+      skipNextAutosave.current = false
+      return
+    }
+    if (!hasFolder() || !diagramName || nodes.length === 0) return
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
+    autosaveTimer.current = setTimeout(() => {
+      saveNow(nodes, edges, diagramName)
+    }, 1500)
+    return () => {
+      if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, edges, diagramName, saveNow])
 
   const handleExportPng = async () => {
     const el = wrapperRef.current?.querySelector(
@@ -289,6 +369,8 @@ function Flow() {
         diagramName={diagramName}
         onDiagramNameChange={setDiagramName}
         onPickFolder={handlePickFolder}
+        needsReconnect={reconnectHandle !== null}
+        onReconnect={handleReconnect}
         onNew={handleNew}
         onAddGroup={handleAddGroup}
         onSave={handleSave}
@@ -297,6 +379,7 @@ function Flow() {
         historyList={historyList}
         onRestoreHistory={handleRestoreHistory}
         onExportPng={handleExportPng}
+        saveStatus={saveStatus}
       />
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         <Palette />
