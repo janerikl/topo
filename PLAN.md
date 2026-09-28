@@ -41,6 +41,19 @@ resources) for application projects and scaling planning.
         cannot be driven by browser automation — needs a manual check by
         the user (see Notes below)
 
+## Build steps — edge direction
+- [x] Add `markerEnd: { type: MarkerType.ArrowClosed }` to `defaultEdgeOptions`
+      and to edges created in `onConnect`, so direction is visible
+- [x] Add `onEdgeContextMenu` (right-click) handler with a small menu offering
+      "Reverse direction", which swaps `source`/`target` (and handles if set)
+      on that edge via `setEdges`
+- [x] Verified in Chrome: new edges get arrowheads, right-click → Reverse
+      direction flips an existing edge's arrowhead, and it survives a page
+      reload (autosave debounces 1.5s — confirmed with a wait before reload)
+- [x] Code review found arrowheads defaulted to React Flow's grey instead of
+      the theme's pink stroke — fixed by adding `color: '#ff0072'` to both
+      `markerEnd` configs (App.tsx onConnect and defaultEdgeOptions)
+
 ## Notes
 - Run with `npm run dev` (open the printed localhost URL) — this is a local
   web app, not a packaged native binary.

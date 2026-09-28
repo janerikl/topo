@@ -5,6 +5,7 @@ import ReactFlow, {
   MiniMap,
   ReactFlowProvider,
   addEdge,
+  MarkerType,
   useEdgesState,
   useNodesState,
   type Connection,
@@ -38,7 +39,23 @@ const nodeTypes = { topo: TopoNode, group: GroupNode }
 const withAnimated = (edges: Edge[]) => edges.map((e) => ({ ...e, animated: true }))
 let idCounter = 1
 const nextId = () => `node-${idCounter++}`
+const syncIdCounter = (allNodes: Array<{ id: string }>) => {
+  const maxId = allNodes.reduce((max, n) => {
+    const match = /^node-(\d+)$/.exec(n.id)
+    return match ? Math.max(max, Number(match[1])) : max
+  }, 0)
+  idCounter = Math.max(idCounter, maxId + 1)
+}
 const LAST_DIAGRAM_KEY = 'topo:lastDiagramName'
+
+const PROTOCOLS = [
+  { id: 'http', label: 'HTTP', color: '#8c8996' },
+  { id: 'https', label: 'HTTPS', color: '#22c55e' },
+  { id: 'mtls', label: 'TLS / mTLS', color: '#3b82f6' },
+  { id: 'jdbc-tls', label: 'JDBC-TLS', color: '#f59e0b' },
+] as const
+type ProtocolId = (typeof PROTOCOLS)[number]['id']
+const protocolById = (id: string | undefined) => PROTOCOLS.find((p) => p.id === id)
 
 function Flow() {
   const [nodes, setNodes, onNodesChange] = useNodesState<TopoNodeData>([])
@@ -57,9 +74,28 @@ function Flow() {
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savedBadgeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const [edgeMenu, setEdgeMenu] = useState<{ id: string; x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    if (!edgeMenu) return
+    const close = () => setEdgeMenu(null)
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [edgeMenu])
+
   const onConnect = useCallback(
     (connection: Connection) => {
-      setEdges((eds) => addEdge({ ...connection, label: '', animated: true }, eds))
+      setEdges((eds) =>
+        addEdge(
+          {
+            ...connection,
+            label: '',
+            animated: true,
+            markerEnd: { type: MarkerType.ArrowClosed, color: '#ff0072' },
+          },
+          eds,
+        ),
+      )
     },
     [setEdges],
   )
@@ -69,6 +105,54 @@ function Flow() {
       const label = window.prompt('Edge label', (edge.label as string) || '')
       if (label === null) return
       setEdges((eds) => eds.map((e) => (e.id === edge.id ? { ...e, label } : e)))
+    },
+    [setEdges],
+  )
+
+  const onEdgeContextMenu = useCallback((event: React.MouseEvent, edge: Edge) => {
+    event.preventDefault()
+    setEdgeMenu({ id: edge.id, x: event.clientX, y: event.clientY })
+  }, [])
+
+  const reverseEdge = useCallback(
+    (edgeId: string) => {
+      setEdges((eds) =>
+        eds.map((e) =>
+          e.id === edgeId
+            ? {
+                ...e,
+                source: e.target,
+                target: e.source,
+                sourceHandle: e.targetHandle ?? null,
+                targetHandle: e.sourceHandle ?? null,
+              }
+            : e,
+        ),
+      )
+      setEdgeMenu(null)
+    },
+    [setEdges],
+  )
+
+  const setEdgeProtocol = useCallback(
+    (edgeId: string, protocolId: ProtocolId | null) => {
+      setEdges((eds) =>
+        eds.map((e) => {
+          if (e.id !== edgeId) return e
+          const protocol = protocolId ? protocolById(protocolId) : undefined
+          return {
+            ...e,
+            label: protocol ? protocol.label : undefined,
+            style: { ...e.style, stroke: protocol ? protocol.color : '#ff0072' },
+            markerEnd: { type: MarkerType.ArrowClosed, color: protocol ? protocol.color : '#ff0072' },
+            labelBgStyle: protocol ? { fill: protocol.color, fillOpacity: 0.9 } : undefined,
+            labelStyle: protocol ? { fill: '#0d0c10', fontWeight: 700, fontSize: 10 } : undefined,
+            labelBgPadding: protocol ? ([6, 3] as [number, number]) : undefined,
+            labelBgBorderRadius: protocol ? 4 : undefined,
+          } as Edge
+        }),
+      )
+      setEdgeMenu(null)
     },
     [setEdges],
   )
@@ -242,6 +326,7 @@ function Flow() {
     setDiagramName(diagram.name)
     setNodes(diagram.nodes as Node<TopoNodeData>[])
     setEdges(withAnimated(diagram.edges as Edge[]))
+    syncIdCounter(diagram.nodes as Array<{ id: string }>)
     setSelectedId(null)
     setHistoryList(await listHistory(diagram.name))
     localStorage.setItem(LAST_DIAGRAM_KEY, diagram.name)
@@ -331,6 +416,7 @@ function Flow() {
     skipNextAutosave.current = true
     setNodes(diagram.nodes as Node<TopoNodeData>[])
     setEdges(withAnimated(diagram.edges as Edge[]))
+    syncIdCounter(diagram.nodes as Array<{ id: string }>)
     setSelectedId(null)
   }
 
@@ -396,14 +482,20 @@ function Flow() {
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onEdgeDoubleClick={onEdgeDoubleClick}
+            onEdgeContextMenu={onEdgeContextMenu}
             onNodeDragStop={onNodeDragStop}
             onInit={setRfInstance}
             nodeTypes={nodeTypes}
             onNodeClick={(_, node) => setSelectedId(node.id)}
-            onPaneClick={() => setSelectedId(null)}
+            onPaneClick={() => {
+              setSelectedId(null)
+              setEdgeMenu(null)
+            }}
+            onMoveStart={() => setEdgeMenu(null)}
             defaultEdgeOptions={{
               style: { stroke: '#ff0072', strokeWidth: 1.5 },
               animated: true,
+              markerEnd: { type: MarkerType.ArrowClosed, color: '#ff0072' },
             }}
             style={{ background: '#0d0c10' }}
             elevateNodesOnSelect={false}
@@ -420,6 +512,89 @@ function Flow() {
               style={{ background: '#141317', border: '1px solid #201f26' }}
             />
           </ReactFlow>
+          {edgeMenu && (
+            <div
+              style={{
+                position: 'fixed',
+                top: edgeMenu.y,
+                left: edgeMenu.x,
+                background: '#1a1820',
+                border: '1px solid #2a2831',
+                borderRadius: 4,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                zIndex: 1000,
+                fontSize: 13,
+              }}
+            >
+              <button
+                onClick={() => reverseEdge(edgeMenu.id)}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  padding: '6px 14px',
+                  background: 'none',
+                  border: 'none',
+                  color: '#eee',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#2a2831')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+              >
+                Reverse direction
+              </button>
+              <div style={{ borderTop: '1px solid #2a2831', margin: '2px 0' }} />
+              <div style={{ padding: '4px 14px', color: '#8c8996', fontSize: 11 }}>Protocol</div>
+              {PROTOCOLS.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setEdgeProtocol(edgeMenu.id, p.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    width: '100%',
+                    padding: '6px 14px',
+                    background: 'none',
+                    border: 'none',
+                    color: '#eee',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#2a2831')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                >
+                  <span
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      background: p.color,
+                      display: 'inline-block',
+                    }}
+                  />
+                  {p.label}
+                </button>
+              ))}
+              <button
+                onClick={() => setEdgeProtocol(edgeMenu.id, null)}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  padding: '6px 14px',
+                  background: 'none',
+                  border: 'none',
+                  color: '#8c8996',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#2a2831')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+              >
+                Clear protocol
+              </button>
+            </div>
+          )}
         </div>
         <Inspector
           node={selectedNode}
